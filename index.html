@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>codex-switch</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <header>
+      <div class="brand">
+        <span class="prompt">&gt;</span> codex-switch
+        <span class="tag" id="live-tag" hidden></span>
+      </div>
+      <div class="actions">
+        <button id="btn-refresh" class="btn" title="Reler as cotas de todas as contas">
+          <span class="icon spin-when-busy">⟳</span> Atualizar
+        </button>
+        <button id="btn-add" class="btn primary">+ Adicionar conta</button>
+        <button id="btn-save" class="btn">Salvar conta atual</button>
+        <button id="btn-settings" class="btn ghost" title="Configurações">Config</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="table-wrap" class="table-wrap" hidden>
+        <div class="row header-row">
+          <div class="cell col-account">ACCOUNT</div>
+          <div class="cell col-plan">PLAN</div>
+          <div class="cell col-session">5H USAGE</div>
+          <div class="cell col-weekly">WEEKLY USAGE</div>
+          <div class="cell col-activity">LAST ACTIVITY</div>
+          <div class="cell col-actions"></div>
+        </div>
+        <div id="rows"></div>
+      </div>
+
+      <div id="empty" class="empty" hidden>
+        <p class="empty-title">Nenhuma conta salva ainda.</p>
+        <p class="empty-line">
+          Use <b>Salvar conta atual</b> para guardar o login que já está ativo neste PC.
+        </p>
+        <p class="empty-line">
+          Depois, use <b>+ Adicionar conta</b> para entrar com a outra conta no navegador
+          (a senha nunca passa por este app).
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <span id="codex-status" class="status"></span>
+      <span class="sep">·</span>
+      <span id="last-refresh" class="status"></span>
+      <span class="spacer"></span>
+      <a
+        id="x-link"
+        class="social-link"
+        href="https://x.com/vinisn93"
+        title="X · @vinisn93"
+        aria-label="Abrir o perfil de @vinisn93 no X"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817-5.964 6.817H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
+        </svg>
+      </a>
+      <span id="accounts-count" class="status"></span>
+    </footer>
+
+    <div id="dialog-root"></div>
+    <div id="toast-root"></div>
+  </body>
+</html>
