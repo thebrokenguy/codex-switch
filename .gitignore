@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local credentials and app state. Never publish these files.
+codex-switch.settings.json
+auth.json
+auth.json.*
+**/auth.json
+**/auth-profiles/
+**/_backups/
+*.auth.json
+auth-profiles/
+_backups/
+.env
+.env.*
+!.env.example
+
+# Local release artifacts. Publish them only through an intentional release asset.
+*.exe
+*.zip
