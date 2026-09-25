@@ -860,7 +860,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   initColumnResize();
 
-  startUpdateChecks();
+  startUpdateChecks((message) => toast(message, "ok"));
 
   void listen<AccountRow[]>("usage-updated", (event) => {
     renderRows(event.payload);

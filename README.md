@@ -24,18 +24,17 @@ O exe é portátil e roda de qualquer pasta. O arquivo de configuração fica ao
 
 ## Releases e atualização automática
 
-A partir da tag `v0.2.0`, cada release publicada no GitHub traz um instalador
-NSIS (instalação por usuário, sem admin). O app instalado checa novas versões
-em silêncio, baixa, valida a assinatura e instala sozinho; no Windows ele
-reinicia para aplicar.
+O app é distribuído como exe portátil (`codex-switch-portable.exe`) nas
+GitHub Releases e se atualiza sozinho: checa a release mais recente 10s após
+abrir e a cada 6h, baixa o exe novo, confere o SHA-256 e troca o arquivo na
+próxima abertura (o exe antigo fica como backup `.old`). Nada é instalado e
+nenhum admin é pedido.
 
 - Publicação: envie uma tag `vX.Y.Z` batendo com a versão em
-  `src-tauri/tauri.conf.json`; o GitHub Actions compila, assina e publica.
+  `src-tauri/tauri.conf.json`; o GitHub Actions compila, gera o manifesto de
+  atualização e publica a release.
 - CI: todo PR e push na `main` roda build do frontend e os testes do núcleo.
-- Detalhes, chaves e solução de problemas: `docs/RELEASES.md`.
-
-Quem prefere o exe portátil continua podendo gerar com
-`npm run tauri build -- --no-bundle`; nesse caso não há atualização automática.
+- Detalhes, integridade e solução de problemas: `docs/RELEASES.md`.
 
 ## Estado
 

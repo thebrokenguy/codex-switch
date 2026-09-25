@@ -1,6 +1,6 @@
 [package]
 name = "codex-switch"
-version = "0.1.0"
+version = "0.2.0"
 description = "Alternador de contas do Codex com painel de cotas"
 edition = "2021"
 
@@ -30,8 +30,6 @@ tokio = { version = "1.53.1", features = ["time"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "gzip", "native-tls", "form"] }
 tauri-plugin-single-instance = "2.4.4"
 tauri-plugin-dialog = "^2"
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
