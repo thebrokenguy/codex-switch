@@ -1,0 +1,48 @@
+name: release
+
+# Gera a release (instalador NSIS assinado + latest.json) quando uma tag v*
+# é enviada. O updater do app lê o latest.json da release mais recente.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Confere tag x versão do app
+        shell: bash
+        run: |
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME não combina com a versão do app ($version)."
+            echo "Atualize src-tauri/tauri.conf.json (e package.json/Cargo.toml) antes de taggear."
+            exit 1
+          fi
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Build + release assinada
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: codex-switch ${{ github.ref_name }}
+          releaseBody: Instale o codex-switch-setup.exe abaixo. Instalações anteriores atualizam sozinhas.
+          releaseDraft: false
+          prerelease: false

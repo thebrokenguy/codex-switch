@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { startUpdateChecks } from "./updater";
 import semTokensUrl from "./assets/sem-tokens.png";
 
 // ---------------------------------------------------------------------------
@@ -858,6 +859,8 @@ window.addEventListener("DOMContentLoaded", () => {
   $("#btn-settings").addEventListener("click", () => void doSettings());
 
   initColumnResize();
+
+  startUpdateChecks();
 
   void listen<AccountRow[]>("usage-updated", (event) => {
     renderRows(event.payload);
