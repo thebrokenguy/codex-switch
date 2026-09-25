@@ -6,11 +6,11 @@ mod core;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 
-use crate::app::{cleanup_login_on_exit, AppState};
+use crate::app::{cleanup_login_on_exit, AccountRow, AppState};
 use crate::core::paths::CodexPaths;
 use crate::core::settings;
 use crate::core::usage;
@@ -51,21 +51,116 @@ fn spawn_poller(app: AppHandle) {
     });
 }
 
-fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+/// Menor percentual restante entre as janelas da conta, com o nome da janela.
+fn quota_min(row: &AccountRow) -> Option<(i64, &'static str)> {
+    match (row.usage.session_remaining, row.usage.weekly_remaining) {
+        (Some(session), Some(weekly)) => {
+            if session <= weekly {
+                Some((session, "5h"))
+            } else {
+                Some((weekly, "semana"))
+            }
+        }
+        (Some(session), None) => Some((session, "5h")),
+        (None, Some(weekly)) => Some((weekly, "semana")),
+        (None, None) => None,
+    }
+}
+
+fn percent_text(value: i64) -> String {
+    format!("{}%", value.clamp(0, 100))
+}
+
+/// Texto do tooltip da bandeja: quanto falta para acabar em cada conta.
+fn tray_tooltip(rows: &[AccountRow]) -> String {
+    if rows.is_empty() {
+        return "codex-switch".to_string();
+    }
+    let mut parts: Vec<String> = rows
+        .iter()
+        .take(3)
+        .map(|row| match quota_min(row) {
+            Some((value, window)) => {
+                format!("{} {} ({window})", row.display_name, percent_text(value))
+            }
+            None => format!("{} –", row.display_name),
+        })
+        .collect();
+    if rows.len() > 3 {
+        parts.push("…".to_string());
+    }
+    let mut tip = format!("codex-switch — restante: {}", parts.join(" · "));
+    if tip.chars().count() > 120 {
+        tip = tip.chars().take(119).collect::<String>() + "…";
+    }
+    tip
+}
+
+/// Linha informativa de cota para o menu da bandeja.
+fn quota_menu_label(row: &AccountRow) -> String {
+    if row.usage.error.is_some() {
+        return format!("{} — cotas indisponíveis", row.display_name);
+    }
+    let fmt = |value: Option<i64>| match value {
+        Some(value) => percent_text(value),
+        None => "–".to_string(),
+    };
+    format!(
+        "{} — 5h {} · semana {}",
+        row.display_name,
+        fmt(row.usage.session_remaining),
+        fmt(row.usage.weekly_remaining)
+    )
+}
+
+/// Monta o menu da bandeja: ações, cotas por conta e sair.
+fn tray_menu(app: &AppHandle, rows: &[AccountRow]) -> tauri::Result<Menu<tauri::Wry>> {
     let open_item = MenuItem::with_id(app, "open", "Abrir painel", true, None::<&str>)?;
     let refresh_item =
         MenuItem::with_id(app, "refresh", "Atualizar cotas agora", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &open_item,
-            &refresh_item,
-            &PredefinedMenuItem::separator(app)?,
-            &quit_item,
-        ],
-    )?;
+    let mut quota_items = Vec::new();
+    for row in rows {
+        quota_items.push(MenuItem::with_id(
+            app,
+            format!("quota-{}", row.slug),
+            quota_menu_label(row),
+            false,
+            None::<&str>,
+        )?);
+    }
+    let quota_sep = PredefinedMenuItem::separator(app)?;
+    let end_sep = PredefinedMenuItem::separator(app)?;
+    let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&open_item, &refresh_item];
+    if !quota_items.is_empty() {
+        items.push(&quota_sep);
+        items.extend(
+            quota_items
+                .iter()
+                .map(|item| item as &dyn IsMenuItem<tauri::Wry>),
+        );
+    }
+    items.push(&end_sep);
+    items.push(&quit_item);
+    Menu::with_items(app, &items)
+}
 
+/// Atualiza tooltip e menu da bandeja com o estado atual das cotas.
+pub(crate) fn update_tray_status(app: &AppHandle, rows: &[AccountRow]) {
+    let Some(tray) = app.tray_by_id("main-tray") else {
+        return;
+    };
+    let _ = tray.set_tooltip(Some(tray_tooltip(rows)));
+    match tray_menu(app, rows) {
+        Ok(menu) => {
+            let _ = tray.set_menu(Some(menu));
+        }
+        Err(e) => eprintln!("aviso: falha atualizando menu da bandeja: {e}"),
+    }
+}
+
+fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+    let menu = tray_menu(app, &[])?;
     let mut builder = TrayIconBuilder::with_id("main-tray")
         .tooltip("codex-switch")
         .menu(&menu)
@@ -164,4 +259,80 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running codex-switch");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::UsageView;
+
+    fn row(name: &str, session: Option<i64>, weekly: Option<i64>) -> AccountRow {
+        AccountRow {
+            slug: "conta".to_string(),
+            display_name: name.to_string(),
+            email: None,
+            plan: None,
+            is_active: false,
+            has_file: true,
+            last_used_at: None,
+            usage: UsageView {
+                session_remaining: session,
+                weekly_remaining: weekly,
+                ..Default::default()
+            },
+        }
+    }
+
+    #[test]
+    fn tooltip_uses_tightest_window_per_account() {
+        let tip = tray_tooltip(&[
+            row("pessoal", Some(37), Some(84)),
+            row("trabalho", Some(90), Some(12)),
+        ]);
+        assert_eq!(
+            tip,
+            "codex-switch — restante: pessoal 37% (5h) · trabalho 12% (semana)"
+        );
+    }
+
+    #[test]
+    fn tooltip_without_usage_reads_dash() {
+        let tip = tray_tooltip(&[row("pessoal", None, None)]);
+        assert_eq!(tip, "codex-switch — restante: pessoal –");
+    }
+
+    #[test]
+    fn tooltip_caps_accounts_at_three() {
+        let rows = vec![
+            row("um", Some(10), None),
+            row("dois", Some(20), None),
+            row("tres", Some(30), None),
+            row("quatro", Some(40), None),
+        ];
+        let tip = tray_tooltip(&rows);
+        assert!(tip.contains("um 10% (5h)"));
+        assert!(tip.contains("tres 30% (5h)"));
+        assert!(tip.ends_with('…'));
+        assert!(!tip.contains("quatro"));
+    }
+
+    #[test]
+    fn tooltip_is_length_capped() {
+        let long_a = "x".repeat(60);
+        let long_b = "y".repeat(60);
+        let rows = vec![row(&long_a, Some(100), None), row(&long_b, Some(99), None)];
+        let tip = tray_tooltip(&rows);
+        assert!(tip.chars().count() <= 120);
+        assert!(tip.ends_with('…'));
+    }
+
+    #[test]
+    fn quota_menu_label_lists_both_windows() {
+        let label = quota_menu_label(&row("pessoal", Some(37), Some(84)));
+        assert_eq!(label, "pessoal — 5h 37% · semana 84%");
+
+        let mut failing = row("pessoal", Some(37), Some(84));
+        failing.usage.error = Some("falhou".to_string());
+        assert_eq!(quota_menu_label(&failing), "pessoal — cotas indisponíveis");
+    }
 }

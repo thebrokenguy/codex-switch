@@ -5,9 +5,10 @@ Utilitário pessoal para Windows que alterna entre contas ChatGPT/Codex na mesma
 ## O que faz
 
 - Painel de cotas por conta: CONTA, PLANO, USO 5H, USO SEMANAL, ÚLTIMA ATIVIDADE (atualiza a cada X minutos).
+- Colunas redimensionáveis: arraste os divisores no cabeçalho; duplo clique no divisor restaura o padrão.
 - Troca de conta com um clique: backup automático, verificação por hash e reabertura do Codex.
 - Adicionar conta via login isolado no navegador, sem derrubar a conta ativa.
-- Ícone na bandeja (abrir, atualizar cotas, sair), atalho no Desktop e no Menu Iniciar, e opção de iniciar com o Windows.
+- Ícone na bandeja com as cotas restantes no tooltip e no menu (abrir, atualizar cotas, sair), atalho no Desktop e no Menu Iniciar, e opção de iniciar com o Windows.
 - Detecção automática do `codex.exe` com opção de selecionar manualmente outro executável e voltar à detecção automática.
 - Link discreto para o perfil público no X: [@vinisn93](https://x.com/vinisn93).
 

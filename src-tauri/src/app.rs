@@ -315,6 +315,7 @@ pub async fn refresh_and_emit(app: AppHandle) -> Result<()> {
         let state = app.state::<AppState>();
         list_accounts_inner(&state)?
     };
+    crate::update_tray_status(&app, &rows);
     let _ = app.emit("usage-updated", rows);
     Ok(())
 }
@@ -340,9 +341,14 @@ pub fn list_accounts(state: State<'_, AppState>) -> Result<Vec<AccountRow>, Stri
 }
 
 #[tauri::command]
-pub async fn refresh_usage(state: State<'_, AppState>) -> Result<Vec<AccountRow>, String> {
+pub async fn refresh_usage(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<AccountRow>, String> {
     refresh_all(&state).await.map_err(err_msg)?;
-    list_accounts_inner(&state).map_err(err_msg)
+    let rows = list_accounts_inner(&state).map_err(err_msg)?;
+    crate::update_tray_status(&app, &rows);
+    Ok(rows)
 }
 
 #[tauri::command]
