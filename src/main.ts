@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openFile } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import semTokensUrl from "./assets/sem-tokens.png";
 
 // ---------------------------------------------------------------------------
 // Tipos (espelham o serde do backend)
@@ -166,11 +167,20 @@ function usageCell(view: UsageView, kind: "session" | "weekly"): string {
     if (remaining <= 5) cls += " critical";
     else if (remaining <= 25) cls += " low";
   }
-  // text vem como "77% (21:10)" ou "100%" ou "–"
+  // Personagem (sem-tokens) apenas na coluna 5H (session):
+  // sem número -> personagem; esgotada (0%) -> personagem + 0%; weekly: só números.
+  const allowChar = kind === "session";
   const m = text.match(/^(\d+)%(.*)$/);
   let inner: string;
   if (m) {
-    inner = `<span>${m[1]}%</span>${m[2] ? `<span class="reset">${esc(m[2])}</span>` : ""}`;
+    const reset = m[2] ? `<span class="reset">${esc(m[2])}</span>` : "";
+    if (allowChar && Number(m[1]) === 0) {
+      inner = `<img class="sem-tokens" src="${semTokensUrl}" alt="acabou os tokens" title="acabou os tokens" /><span>${m[1]}%</span>${reset}`;
+    } else {
+      inner = `<span>${m[1]}%</span>${reset}`;
+    }
+  } else if (allowChar && (text === "–" || text === "-" || text.trim() === "")) {
+    inner = `<img class="sem-tokens" src="${semTokensUrl}" alt="acabou os tokens" title="acabou os tokens" />`;
   } else {
     inner = `<span class="reset">${esc(text)}</span>`;
   }
@@ -216,10 +226,10 @@ function renderRows(rows: AccountRow[]) {
           ${
             row.is_active
               ? ""
-              : `<button class="mini use" data-act="use" data-slug="${esc(row.slug)}">Trocar</button>`
+              : `<button class="mini use icon" data-act="use" data-slug="${esc(row.slug)}" title="Trocar para esta conta" aria-label="Trocar para esta conta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" /></svg></button>`
           }
-          <button class="mini" data-act="rename" data-slug="${esc(row.slug)}" title="Renomear">✎</button>
-          <button class="mini" data-act="remove" data-slug="${esc(row.slug)}" title="Remover">✕</button>
+          <button class="mini icon" data-act="rename" data-slug="${esc(row.slug)}" title="Renomear" aria-label="Renomear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /><path d="m15 5 4 4" /></svg></button>
+          <button class="mini icon" data-act="remove" data-slug="${esc(row.slug)}" title="Remover" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
         </div>
       </div>`;
 
@@ -710,6 +720,127 @@ async function doSettings() {
 }
 
 // ---------------------------------------------------------------------------
+// Colunas redimensionáveis
+// ---------------------------------------------------------------------------
+
+const COLUMN_DEFS: ReadonlyArray<{ key: string; min: number }> = [
+  { key: "account", min: 120 },
+  { key: "plan", min: 52 },
+  { key: "session", min: 90 },
+  { key: "weekly", min: 110 },
+  { key: "activity", min: 80 },
+];
+
+const COLUMN_STORAGE_KEY = "codex-switch.column-widths.v1";
+
+function columnVar(key: string): string {
+  return `--col-${key}`;
+}
+
+function readStoredColumnWidths(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, number> = {};
+    for (const def of COLUMN_DEFS) {
+      const value = (parsed as Record<string, unknown>)[def.key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= def.min) {
+        out[def.key] = Math.round(value);
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function persistColumnWidths() {
+  const out: Record<string, number> = {};
+  for (const def of COLUMN_DEFS) {
+    const raw = tableWrap.style.getPropertyValue(columnVar(def.key)).trim();
+    const match = /^(\d+(?:\.\d+)?)px$/.exec(raw);
+    if (match) out[def.key] = Math.round(Number(match[1]));
+  }
+  try {
+    if (Object.keys(out).length) {
+      localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(out));
+    } else {
+      localStorage.removeItem(COLUMN_STORAGE_KEY);
+    }
+  } catch {
+    /* armazenamento indisponível: segue sem persistir */
+  }
+}
+
+function maxColumnWidth(startWidth: number): number {
+  // Limite do comprimento: impede que o arrasto estoure a largura da tabela
+  // (sem isso, alargar demais uma coluna criaria barra de rolagem).
+  const actions = document.querySelector<HTMLElement>(".header-row .col-actions");
+  const actionsWidth = actions ? actions.getBoundingClientRect().width : 112;
+  const room = tableWrap.clientWidth - tableWrap.scrollWidth + Math.max(0, actionsWidth - 112);
+  return Math.max(startWidth, Math.floor(startWidth + Math.max(0, room) - 1));
+}
+
+function initColumnResize() {
+  for (const [key, width] of Object.entries(readStoredColumnWidths())) {
+    tableWrap.style.setProperty(columnVar(key), `${width}px`);
+  }
+
+  document.querySelectorAll<HTMLElement>(".col-resizer").forEach((handle) => {
+    const key = handle.dataset.col ?? "";
+    const def = COLUMN_DEFS.find((d) => d.key === key);
+    const cell = handle.closest<HTMLElement>(".cell");
+    if (!def || !cell) return;
+
+    let startX = 0;
+    let startWidth = 0;
+    let maxWidth = Number.POSITIVE_INFINITY;
+
+    const onMove = (event: PointerEvent) => {
+      const desired = Math.round(startWidth + event.clientX - startX);
+      const width = Math.min(maxWidth, Math.max(def.min, desired));
+      tableWrap.style.setProperty(columnVar(key), `${width}px`);
+    };
+    const onEnd = (event: PointerEvent) => {
+      handle.classList.remove("dragging");
+      tableWrap.classList.remove("resizing");
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onEnd);
+      handle.removeEventListener("pointercancel", onEnd);
+      if (handle.hasPointerCapture(event.pointerId)) {
+        handle.releasePointerCapture(event.pointerId);
+      }
+      persistColumnWidths();
+    };
+
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      startX = event.clientX;
+      startWidth = cell.getBoundingClientRect().width;
+      maxWidth = maxColumnWidth(startWidth);
+      handle.classList.add("dragging");
+      tableWrap.classList.add("resizing");
+      try {
+        handle.setPointerCapture(event.pointerId);
+      } catch {
+        /* alguns ambientes não suportam captura de ponteiro */
+      }
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onEnd);
+      handle.addEventListener("pointercancel", onEnd);
+    });
+
+    handle.addEventListener("dblclick", () => {
+      tableWrap.style.removeProperty(columnVar(key));
+      persistColumnWidths();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Inicialização
 // ---------------------------------------------------------------------------
 
@@ -725,6 +856,8 @@ window.addEventListener("DOMContentLoaded", () => {
   $("#btn-add").addEventListener("click", () => void doAddAccount());
   $("#btn-save").addEventListener("click", () => void doSaveCurrent());
   $("#btn-settings").addEventListener("click", () => void doSettings());
+
+  initColumnResize();
 
   void listen<AccountRow[]>("usage-updated", (event) => {
     renderRows(event.payload);
