@@ -1,7 +1,8 @@
 name: release
 
-# Gera a release (instalador NSIS assinado + latest.json) quando uma tag v*
-# é enviada. O updater do app lê o latest.json da release mais recente.
+# Gera a release do app portátil quando uma tag v* é enviada:
+# - codex-switch-portable.exe (exe único, roda de qualquer pasta)
+# - update-manifest.json (versão + SHA-256 lidos pelo auto-update do app)
 on:
   push:
     tags: ["v*"]
@@ -34,15 +35,24 @@ jobs:
       - name: Dependências
         run: npm ci
 
-      - name: Build + release assinada
-        uses: tauri-apps/tauri-action@v0
+      - name: Build portátil
+        run: npm run tauri build -- --no-bundle
+
+      - name: Prepara exe, hash e manifesto
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          cp src-tauri/target/release/codex-switch.exe codex-switch-portable.exe
+          sha256="$(sha256sum codex-switch-portable.exe | cut -d' ' -f1)"
+          printf '{"version":"%s","asset":"codex-switch-portable.exe","sha256":"%s"}' \
+            "$version" "$sha256" > update-manifest.json
+          cat update-manifest.json
+
+      - name: Publica release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: codex-switch ${{ github.ref_name }}
-          releaseBody: Instale o codex-switch-setup.exe abaixo. Instalações anteriores atualizam sozinhas.
-          releaseDraft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          codex-switch-portable.exe update-manifest.json
+          --title "codex-switch $GITHUB_REF_NAME"
+          --notes "App portátil: baixe o codex-switch-portable.exe e rode de qualquer pasta. Instalações anteriores atualizam sozinhas."

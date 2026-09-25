@@ -4,6 +4,7 @@
 //! - `paths`: resolução de caminhos (home do Codex, pasta de perfis, backups).
 //! - `auth`: leitura/escrita atômica do auth.json e claims do id_token.
 
+pub mod appupdate;
 pub mod auth;
 pub mod codex_process;
 pub mod format;

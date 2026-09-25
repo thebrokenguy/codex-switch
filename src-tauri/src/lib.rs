@@ -198,14 +198,15 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Aplica atualização staged (se houver) antes de qualquer coisa: troca o
+    // exe e reabre já na versão nova.
+    crate::core::appupdate::apply_staged_update();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -258,6 +259,7 @@ pub fn run() {
             app::quit_app,
             app::get_start_with_windows,
             app::set_start_with_windows,
+            core::appupdate::check_for_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running codex-switch");
