@@ -22,9 +22,24 @@ Utilitário pessoal para Windows que alterna entre contas ChatGPT/Codex na mesma
 
 O exe é portátil e roda de qualquer pasta. O arquivo de configuração fica ao lado do exe (`codex-switch.settings.json`), incluindo o caminho manual escolhido; se a pasta for somente leitura, cai para `%USERPROFILE%\.codex\auth-profiles\`.
 
+## Releases e atualização automática
+
+A partir da tag `v0.2.0`, cada release publicada no GitHub traz um instalador
+NSIS (instalação por usuário, sem admin). O app instalado checa novas versões
+em silêncio, baixa, valida a assinatura e instala sozinho; no Windows ele
+reinicia para aplicar.
+
+- Publicação: envie uma tag `vX.Y.Z` batendo com a versão em
+  `src-tauri/tauri.conf.json`; o GitHub Actions compila, assina e publica.
+- CI: todo PR e push na `main` roda build do frontend e os testes do núcleo.
+- Detalhes, chaves e solução de problemas: `docs/RELEASES.md`.
+
+Quem prefere o exe portátil continua podendo gerar com
+`npm run tauri build -- --no-bundle`; nesse caso não há atualização automática.
+
 ## Estado
 
-v1 concluída em 2026-09-18. Suíte do núcleo: 62 testes verdes (`cargo test --all-targets`). Veja `docs/BRIEF.md` para escopo, decisões e riscos.
+v1 concluída em 2026-09-18. Suíte do núcleo verde (`cargo test --all-targets`). Veja `docs/BRIEF.md` para escopo, decisões e riscos.
 
 ## Desenvolvimento
 
